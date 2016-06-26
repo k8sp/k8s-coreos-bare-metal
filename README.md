@@ -9,7 +9,7 @@
 - 重构说明文档
 - 脚本修改 master 和 worker 节点 TLS 生成逻辑
 - 脚本增加 worker 节点配置 flanneld.service 服务
-- 脚本增加 flanneld 配置后服务重启生效
+- 脚本删除 flannel 的配置
 
 ## 2. 使用说明
 
@@ -19,10 +19,9 @@
 
 ### 2.2. 前提环境
 
-在使用脚本安装前, 需要确定集群服务器能稳定翻墙和 CoreOS 中的 `etcd2` 正常运行, 脚本会进行以下操作:
+在使用脚本安装前, 需要确定集群服务器能稳定翻墙和 CoreOS 中的 `etcd2`、`flannel` 正常运行, 脚本会进行以下操作:
 
 - 生成 master 和 worker 的 TLS 秘钥
-- 配置 flanneld
 - 配置 kubelet
 - 生成 k8s 服务组件配置文件
   - master (kube-apiserver.yaml、kube-controller-manager.yaml、kube-proxy.yaml、kube-scheduler.yaml),
@@ -42,8 +41,12 @@ curl -w "\n" 'https://discovery.etcd.io/new?size=3'
 
 通过 cloud-config 配置 etcd2, 多节点需要修改相应字段, 配置文件如下:
 
+- discovery 上面生成的 token
+
+
 - 10.10.10.191 地址需要替换成本机的 IP 地址
 - hostname 字段更换为本机的名称
+- ssh_authorized_keys 替换为自己公钥
 
 ```yaml
 #cloud-config
@@ -70,9 +73,6 @@ hostname: "coreos-191"
 
 ssh_authorized_keys:
     - "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAzAy8KEKxDMmjd55RMKLFs8bhNGHgC+pvjbC7BOp4gibozfZAr84nWsfZPs44h1jMq0pX2qzGOpzGEN9RH/ALFCe/OixWkh+INnVTIr8scZr6M+3NzN+chBVGvmIAebUfhXrrP7pUXwK06T2MyT7HaDumfUiHF+n3vNIQTpsxnJA7lmx2IJvz6EujK9le75vJM19MsbUZDk61wuiqhbUZMwQEAKrWsvt9CPhqyHD2Ueul0cG/0fHqOXS/fw7Ikg29rUwdzRuYnvw6izuvBoaHF6nNxR+qSiVi3uyJdNox0/nd87OVvd0fE5xEz+xZ8aFwGyAZabo/KWgcMxk6WN0O1Q== lipeng@Megatron"
-    - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDXZ722k3K5gvfT6kirCHtZRmpEvnVnET3I3MY6V5zqStkPi+yGWM4er6gkst98FGBsF5N/CfTnwUk7SAJbsugMPk0F0HGbrDDTtqzLAJKrN+chPbpwQUZip1/vstGCO24bxCWj9DgaN4tn4k0piskZu5wmwK+1BWyL1oycijbdtQ== renhe@renhe-ThinkPad-X240"
-    - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDVwfLAgA8DICHp0//xfBTgfU34fVOtKpxgrkceC605HGQ6GIPsBHKw6CYeGziwZBDNtMZxTeyQ7+79sqA2VUR2I5nrhlxw/Wc80yTsjbRmcIbr3mUNCd3+cOqnOAsWEucZCHHcNYwUQ3wIOoyP0cBLKI4b25ucgtawxCmB7PJ1Cme+vIf1cVffeQqedu7hmlpQf/DnQc7O1iBRhEAqKgy1Y+hb0Ryc7StAe0nDHCj+2b08vHlNXaS2sJKrXUE0HhCZZP46APaLmZPmmHeoJKx31M0IERWYaZRvLe0Pl7Pp6DueOSJvvNwR5YbNe5aQ2pO3xiv3wCj6n66dlqAhpmmD vien.lee@localhost"
-    - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCrYpsQVHBRUA/sZfxgK+9jZBGZfoulXXe0faPCGC0b3L6z/qYzJnNFf1d4gj6hQaGyHGvVlr6Kd/6y+0Eour51R2H+8FO+9Y7BaomuluHzm/jcgruAmbVrXZ8vKDDPDx4Lf1tnU1SqPpKFRgdro+BUcj/0LZ45tzsblpA2JOiMJkpqtx17WPKIzc9q5OZKVcV+zh/O+JuKLW/bDIndGiQRVJBGa87ZkCf+fzO5ME4nl7MsG/YY+9J/UkwDbZQd3wFTRqmHncrSupNhu1R2DttP9eWSHQsJIaEXmqKv4p7p4byztix3A/2hBUILZa3iDwxlCZq7OBrQCc/xOI45VMR7 liangjiameng@liangjiameng-Ubuntu"
 
 users:
   - name: "ops"
@@ -122,7 +122,7 @@ COREOS_PRIVATE_IPV4=10.10.10.191
 sudo bash setup_k8s_master.sh
 ```
 
-执行完后, 确认 Kuberlet 服务正常, 443、8080等端口正常打开, 如下图: ![2016-06-26_15-35-36](./img/2016-06-26_15-35-36.png) 
+执行完后, 确认 kubelet 服务正常, 443、8080等端口正常打开, 如下图: ![2016-06-26_15-35-36](./img/2016-06-26_15-35-36.png) 
 
 ![2016-06-26_15-35-36_01](./img/2016-06-26_15-35-36_01.png)
 
