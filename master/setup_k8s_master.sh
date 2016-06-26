@@ -21,6 +21,8 @@
 
 # 本脚本以及相关配置文件预设：MasterNodeIP=10.10.10.191, WorkerNodeIP=10.10.10.192
 
+# environment is a file which contains the IP of the master
+\cp environment /etc/ -f
 
 export MASTER_HOST=$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)
 export ETCD_ENDPOINTS="http://${MASTER_HOST}:2379"
@@ -774,10 +776,6 @@ EOF
     }
 
 }
-
-
-# environment is a file which contains the IP of the master
-\cp environment /etc/ -f
 
 # generate tls assets and put them in /etc/kubernetes/ssl
 setup_tls
