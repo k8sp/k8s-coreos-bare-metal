@@ -7,7 +7,7 @@
 项目修改自 [xiaohe1977/coreos-bare-metal:bare-metal](https://github.com/xiaohe1977/k8s-coreos-bare-metal), 修改内容如下:
 
 - 重构说明文档
-- 脚本修改 Master 和 worker 节点 TLS 生成逻辑
+- 脚本修改 master 和 worker 节点 TLS 生成逻辑
 - 脚本增加 worker 节点配置 flanneld.service 服务
 - 脚本增加 flanneld 配置后服务重启生效
 
@@ -17,7 +17,7 @@
 
 - k8s => kubernetes
 
-### 2.2. 前提环境
+### 2.2. 前提环境
 
 在使用脚本安装前, 需要确定集群服务器能稳定翻墙和 CoreOS 中的 `etcd2` 正常运行, 脚本会进行以下操作:
 
@@ -25,7 +25,7 @@
 - 配置 flanneld
 - 配置 kubelet
 - 生成 k8s 服务组件配置文件
-  - Master (kube-apiserver.yaml、kube-controller-manager.yaml、kube-proxy.yaml、kube-scheduler.yaml),
+  - master (kube-apiserver.yaml、kube-controller-manager.yaml、kube-proxy.yaml、kube-scheduler.yaml),
   - worker (kube-proxy.yaml)
 - 通过 kubelet 服务启动 k8s 服务组件容器
 
@@ -84,7 +84,7 @@ users:
 
 __cloud-config 使用说明__
 
-cloud-config 三种使用方式:
+cloud-config 有三种使用方式:
 
 - coreos-install: 系统安装时指定 cloud-config 配置文件, 会拷贝为 /var/lib/coreos-install/user-data, 每次启动时都会初始化
 - coreos-cloudinit: 使用 `sudo coreos-cloudinit --from-file config.yml` 会立即配置 cloud-config , 重启后以`/var/lib/coreos-install/user-data` 配置为主
@@ -94,9 +94,137 @@ cloud-config 三种使用方式:
 
 通过以上方法使得集群 `etcd2` 运行正常, 下面就开始执行 k8s 集群的安装脚本
 
-__Master__
+__Master 节点安装__
 
-待续....
+进入家目录, 下载 k8s-coreos-bare-metal 项目 zip 包 进入 master 安装目录
 
+```shell
+# 下载项目 ZIP 包, 并解压
+cd ~ && wget https://github.com/k8sp/k8s-coreos-bare-metal/archive/master.zip && unzip master.zip
 
+# 进入 master 安装目录
+cd k8s-coreos-bare-metal-master/master/
+```
 
+修改 environment 中 `COREOS_PUBLIC_IPV4`、`COREOS_PRIVATE_IPV4` 中 IP 地址为本机 IP
+
+```shell
+# 修改 environment
+vim environment
+------
+COREOS_PUBLIC_IPV4=10.10.10.191
+COREOS_PRIVATE_IPV4=10.10.10.191
+```
+
+执行 k8s master 安装脚本
+
+```shell
+sudo bash setup_k8s_master.sh
+```
+
+执行完后, 确认 Kuberlet 服务正常, 443、8080等端口正常打开, 如下图: ![2016-06-26_15-35-36](./img/2016-06-26_15-35-36.png) 
+
+![2016-06-26_15-35-36_01](./img/2016-06-26_15-35-36_01.png)
+
+__Worker 节点安装__
+
+下载 k8s-coreos-bare-metal 项目 zip 包 进入 worker 安装目录
+
+```shell
+# 下载项目 ZIP 包, 并解压
+wget https://github.com/k8sp/k8s-coreos-bare-metal/archive/master.zip && unzip master.zip
+
+# 进入 worker 安装目录
+cd k8s-coreos-bare-metal-master/worker/
+```
+
+修改 environment 中 `COREOS_PUBLIC_IPV4`、`COREOS_PRIVATE_IPV4`、`KUBERNETES_MASTER_IPV4`、`KUBERNETES_WORKER_FQDN` 中 变量信息
+
+- COREOS_PUBLIC_IPV4、COREOS_PRIVATE_IPV4: 本机 IP 地址
+- KUBERNETES_MASTER_IPV4: master 节点 IP地址
+- KUBERNETES_WORKER_FQDN: worker 节点命名
+
+```shell
+# 修改 environment
+vim environment
+------
+COREOS_PUBLIC_IPV4=10.10.10.212
+COREOS_PRIVATE_IPV4=10.10.10.212
+KUBERNETES_MASTER_IPV4=10.10.10.211
+KUBERNETES_WORKER_FQDN=kube-worker1
+```
+
+创建 ssl 目录, 拷贝 master 节点 /home/coreos/k8s-coreos-bare-metal-master/master/ssl/worker 到 ssl 目录下
+
+```shell
+# 创建 ssl 目录
+mkdir ssl
+# 拷贝项目目录下 ssl/worker 到 ssl/
+scp -r kube-master:~/k8s-coreos-bare-metal-master/master/ssl/worker ssl/
+```
+
+执行 k8s worker 安装脚本
+
+```shell
+sudo bash setup_k8s_worker.sh
+```
+
+执行完成后, 等待 3 分钟确认 kubelet 服务、端口状态
+
+![2016-06-26_15-51-54](./img/2016-06-26_15-51-54.png)
+
+![2016-06-26_15-52-44](./img/2016-06-26_15-52-44.png)
+
+__配置客户端 Kubectl__
+
+下载 k8s-coreos-bare-metal 项目 zip 包 进入 kubectl 安装目录
+
+```shell
+# 下载项目 ZIP 包, 并解压
+wget https://github.com/k8sp/k8s-coreos-bare-metal/archive/master.zip && unzip master.zip
+
+# 进入 kubectl 安装目录
+cd k8s-coreos-bare-metal-master/kubectl/
+```
+
+根据不同的系统配置不同kubectl
+
+```shell
+# Linux 客户端
+ln -sf kubectl_linux kubectl
+
+# MacOS 客户端
+ln -sf kubectl_macos kubectl
+```
+
+拷贝 master 节点项目生成的连接秘钥文件( /home/coreos/k8s-coreos-bare-metal-master/master/ssl/kubectl/*)到到当前目录,
+
+```shell
+scp -r kube-master:~/k8s-coreos-bare-metal-master/master/ssl/kubectl/* .
+```
+
+当前目录下的文件如下图:
+
+![2016-06-26_16-20-07](./img/2016-06-26_16-20-07.png)
+
+修改 kube.sh 中 `MASTER_HOST` 的IP地址
+
+```shell
+vim kube.sh
+------
+#! /bin/bash
+
+MASTER_HOST=10.10.10.211
+```
+
+执行 kube.sh, 测试 kubectl 命令是否正常
+
+```shell
+# 导入配置到当前 bash 环境
+source kube.sh
+
+# 测试 kubectl 连接是否正常
+./kubectl get node
+```
+
+![2016-06-26_16-16-33](./img/2016-06-26_16-16-33.png)

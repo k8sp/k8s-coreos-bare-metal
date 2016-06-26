@@ -1,8 +1,8 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 
-# 本脚本实现了在bare-metal上对kubernetes的master节点的自动安装。 
-# 使用本脚本前要确认coreos上的etcd2服务和flanneld服务已经正常运行。如果这两个服务不能正常运行，请参见：      
+# 本脚本实现了在bare-metal上对kubernetes的master节点的自动安装。
+# 使用本脚本前要确认coreos上的etcd2服务和flanneld服务已经正常运行。如果这两个服务不能正常运行，请参见：
 # https://github.com/k8sp/bare-metal-coreos/pull/5/files/6f0c6ac9d371385be42f1bca990a69fe75309ad9?short_path=9189e72#diff-9189e729dd6dcd55d55a209facc4a6db
 
 # 本脚本编写过程中主要参考了coreos官网安装k8s的step by step 教程，地址如下：
@@ -22,8 +22,8 @@
 # 本脚本以及相关配置文件预设：MasterNodeIP=10.10.10.191, WorkerNodeIP=10.10.10.192
 
 
-
-export ETCD_ENDPOINTS="http://"$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)":2379"
+export MASTER_HOST=$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)
+export ETCD_ENDPOINTS="http://${MASTER_HOST}:2379"
 echo "ETCD_ENDPOINTS="$ETCD_ENDPOINTS
 
 export K8S_VER=v1.2.4_coreos.cni.1
@@ -37,23 +37,35 @@ export USE_CALICO=false
 
 
 function setup_tls {
+  mkdir -p /etc/kubernetes/ssl
+  sed -i "s/IP\.2.*/IP.2 = $MASTER_HOST/" openssl.cnf
+  mkdir -p ssl/ca
+  mkdir -p ssl/apiserver
+  mkdir -p ssl/admin
+  mkdir -p ssl/work
+  mkdir -p ssl/kubectl
 
-	mkdir -p /etc/kubernetes/ssl
+  openssl genrsa -out ca-key.pem 2048
+  openssl req -x509 -new -nodes -key ca-key.pem -days 10000 -out ca.pem -subj "/CN=kube-ca"
 
-	openssl genrsa -out apiserver-key.pem 2048
-	openssl req -new -key apiserver-key.pem -out apiserver.csr -subj "/CN=kube-apiserver" -config openssl.cnf
-	openssl x509 -req -in apiserver.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out apiserver.pem -days 365 -extensions v3_req -extfile openssl.cnf
-	openssl genrsa -out ca-key.pem 2048
-	openssl req -x509 -new -nodes -key ca-key.pem -days 10000 -out ca.pem -subj "/CN=kube-ca"
-	openssl genrsa -out admin-key.pem 2048
-	openssl req -new -key admin-key.pem -out admin.csr -subj "/CN=kube-admin"
-	openssl x509 -req -in admin.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out admin.pem -days 365
+  openssl genrsa -out apiserver-key.pem 2048
+  openssl req -new -key apiserver-key.pem -out apiserver.csr -subj "/CN=kube-apiserver" -config openssl.cnf
+  openssl x509 -req -in apiserver.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out apiserver.pem -days 365 -extensions v3_req -extfile openssl.cnf
 
-	rm -f /etc/kubernetes/ssl/*
-	cp -fuv ca.pem apiserver.pem apiserver-key.pem /etc/kubernetes/ssl
+  openssl genrsa -out admin-key.pem 2048
+  openssl req -new -key admin-key.pem -out admin.csr -subj "/CN=kube-admin"
+  openssl x509 -req -in admin.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out admin.pem -days 365
 
-	chmod 600 /etc/kubernetes/ssl/*-key.pem
-	chown root:root /etc/kubernetes/ssl/*-key.pem
+  rm -f /etc/kubernetes/ssl/*
+  \cp -fuv ca.pem apiserver.pem apiserver-key.pem /etc/kubernetes/ssl
+  \cp -fuv ca.pem ca-key.pem ssl/work
+  \cp -fuv ca.pem admin-key.pem admin.pem ssl/kubectl
+  \mv ca.pem ca.srl ca-key.pem ssl/ca
+  \mv apiserver-key.pem apiserver.csr apiserver.pem ssl/apiserver
+  \mv admin-key.pem admin.csr admin.pem ssl/admin
+
+  chmod 600 /etc/kubernetes/ssl/*-key.pem
+  chown root:root /etc/kubernetes/ssl/*-key.pem
 
 }
 
@@ -85,7 +97,7 @@ function init_config {
 function init_template {
     local TEMPLATE=/etc/systemd/system/kubelet.service
     [ -f $TEMPLATE ] || {
-        echo "TEMPLATE: $TEMPLATE"                                              
+        echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
         cat << EOF > $TEMPLATE
 [Service]
@@ -738,37 +750,6 @@ EOF
 EOF
     }
 
-    local TEMPLATE=/etc/flannel/options.env
-    [ -f $TEMPLATE ] || {
-        echo "TEMPLATE: $TEMPLATE"
-        mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
-FLANNELD_IFACE=$ADVERTISE_IP
-FLANNELD_ETCD_ENDPOINTS=$ETCD_ENDPOINTS
-EOF
-    }
-
-    local TEMPLATE=/etc/systemd/system/flanneld.service.d/40-ExecStartPre-symlink.conf.conf
-    [ -f $TEMPLATE ] || {
-        echo "TEMPLATE: $TEMPLATE"
-        mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
-[Service]
-ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
-EOF
-    }
-
-    local TEMPLATE=/etc/systemd/system/docker.service.d/40-flannel.conf
-    [ -f $TEMPLATE ] || {
-        echo "TEMPLATE: $TEMPLATE"
-        mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
-[Unit]
-Requires=flanneld.service
-After=flanneld.service
-EOF
-    }
-
     local TEMPLATE=/etc/kubernetes/cni/net.d/10-calico.conf
     [ -f $TEMPLATE ] || {
         echo "TEMPLATE: $TEMPLATE"
@@ -796,7 +777,7 @@ EOF
 
 
 # environment is a file which contains the IP of the master
-cp environment /etc/ -f
+\cp environment /etc/ -f
 
 # generate tls assets and put them in /etc/kubernetes/ssl
 setup_tls
@@ -805,7 +786,7 @@ setup_tls
 init_config
 echo "ADVERTISE_IP="$ADVERTISE_IP
 
-# generate kubelet service configure files and save them into /etc/kubernetes/manifests 
+# generate kubelet service configure files and save them into /etc/kubernetes/manifests
 init_template
 systemctl daemon-reload
 
@@ -813,10 +794,10 @@ systemctl daemon-reload
 systemctl stop update-engine
 systemctl mask update-engine
 
-# start kubelet service 
+# start kubelet service
 systemctl daemon-reload
 systemctl enable kubelet
-systemctl start kubelet
+systemctl restart kubelet
 
 # sleep 3 minutes, and then create namespace
 sleep 3m

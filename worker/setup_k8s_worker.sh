@@ -20,7 +20,10 @@
 
 # 本脚本以及相关配置文件预设：MasterNodeIP=10.10.10.191, WorkerNodeIP=10.10.10.192
 
-export CONTROLLER_ENDPOINT=https://10.10.10.191
+# environment is a file which contains the IP of the worker
+cp environment /etc/ -f
+
+export CONTROLLER_ENDPOINT="https://$(awk -F= '/KUBERNETES_MASTER_IPV4/ {print $2}' /etc/environment)"
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
 export ENV_FILE=/run/coreos-kubernetes/options.env
 export ETCD_ENDPOINTS="http://"$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)":2379"
@@ -33,23 +36,29 @@ export DNS_SERVICE_IP=10.3.0.10
 export USE_CALICO=false
 export SSL_PATH=/etc/kubernetes/ssl
 
+echo "CONTROLLER_ENDPOINT=$CONTROLLER_ENDPOINT"
+echo "ETCD_ENDPOINTS=$ETCD_ENDPOINTS"
+
 
 function init_tls {
 
 	[ -d $SSL_PATH ] || {
 		echo "make ssl path"
 		mkdir -p $SSL_PATH
-	}
+  }
 
-	CURRENT_WORKER_IP=$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)
-	echo $CURRENT_WORKER_IP
-
-	WORKER_IP=$CURRENT_WORKER_IP openssl req -new -key kube-worker1-worker-key.pem -out kube-worker1-worker.csr -subj "/CN=kube-worker1" -config worker-openssl.cnf
-
-	WORKER_IP=$CURRENT_WORKER_IP openssl x509 -req -in kube-worker1-worker.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out kube-worker1-worker.pem -days 365 -extensions v3_req -extfile worker-openssl.cnf
+  CURRENT_WORKER_IP=$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)
+  WORKER_FQDN=$(awk -F= '/KUBERNETES_WORKER_FQDN/ {print $2}' /etc/environment)
+  echo "CURRENT_WORKER_IP=$CURRENT_WORKER_IP"
+  echo "WORKER_FQDN=$WORKER_FQDN"
+  \cp worker-openssl.cnf ssl/worker
+  cd ssl/worker
+  openssl genrsa -out ${WORKER_FQDN}-worker-key.pem 2048
+	WORKER_IP=${CURRENT_WORKER_IP} openssl req -new -key ${WORKER_FQDN}-worker-key.pem -out ${WORKER_FQDN}-worker.csr -subj "/CN=${WORKER_FQDN}" -config worker-openssl.cnf
+	WORKER_IP=${CURRENT_WORKER_IP} openssl x509 -req -in ${WORKER_FQDN}-worker.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out ${WORKER_FQDN}-worker.pem -days 365 -extensions v3_req -extfile worker-openssl.cnf
 
 	rm -f /etc/kubernetes/ssl/*
-	cp -fuv ca.pem *worker*.pem /etc/kubernetes/ssl
+	\cp -fuv ca.pem *worker*.pem /etc/kubernetes/ssl
 
 	chmod 600 /etc/kubernetes/ssl/*-key.pem
 	chown root:root /etc/kubernetes/ssl/*-key.pem
@@ -281,9 +290,6 @@ EOF
 
 }
 
-# environment is a file which contains the IP of the worker
-cp environment /etc/ -f
-
 # generate tls assets and put them in /etc/kubernetes/ssl
 init_tls
 
@@ -299,5 +305,5 @@ systemctl mask update-engine
 
 # start kubelet service
 systemctl daemon-reload
-systemctl enable kubelet; systemctl start kubelet
+systemctl enable kubelet; systemctl restart kubelet
 
