@@ -64,8 +64,8 @@ function init_tls {
 	chown root:root /etc/kubernetes/ssl/*-key.pem
 
 	cd /etc/kubernetes/ssl/
-	ln -sf kube-worker1-worker.pem worker.pem
-	ln -sf kube-worker1-worker-key.pem worker-key.pem
+	ln -sf ${WORKER_FQDN}-worker.pem worker.pem
+	ln -sf ${WORKER_FQDN}-worker-key.pem worker-key.pem
 }
 
 
