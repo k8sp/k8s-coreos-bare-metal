@@ -44,7 +44,7 @@ function setup_tls {
   mkdir -p ssl/ca
   mkdir -p ssl/apiserver
   mkdir -p ssl/admin
-  mkdir -p ssl/work
+  mkdir -p ssl/worker
   mkdir -p ssl/kubectl
 
   openssl genrsa -out ca-key.pem 2048
@@ -60,7 +60,7 @@ function setup_tls {
 
   rm -f /etc/kubernetes/ssl/*
   \cp -fuv ca.pem apiserver.pem apiserver-key.pem /etc/kubernetes/ssl
-  \cp -fuv ca.pem ca-key.pem ssl/work
+  \cp -fuv ca.pem ca-key.pem ssl/worker
   \cp -fuv ca.pem admin-key.pem admin.pem ssl/kubectl
   \mv ca.pem ca.srl ca-key.pem ssl/ca
   \mv apiserver-key.pem apiserver.csr apiserver.pem ssl/apiserver

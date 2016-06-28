@@ -8,7 +8,8 @@
 
 - 重构说明文档
 - 脚本修改 master 和 worker 节点 TLS 生成逻辑
-- 脚本增加 worker 节点配置 flanneld.service 服务
+- 增加配置文件 environment 读取项
+- 修复一些bug
 - 脚本删除 flannel 的配置
 
 ## 2. 使用说明
