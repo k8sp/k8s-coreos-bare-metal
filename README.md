@@ -85,11 +85,12 @@ users:
 
 __cloud-config 使用说明__
 
-cloud-config 有三种使用方式:
+系统工具 `coreos-cloudinit` 根据 cloud-config 文件中的描述，对 CoreOS 系统做定制 (customization). 在系统启动后, 可以手动执行
+```bash
+coreos-cloudinit --from-file <cloud-config>
+```
+使 \<cloud-config\> 中的配置立即生效. 在每次系统启动时, coreos-cloudinit 都会执行, 并以一个默认的文件做为 cloud-config，对于 bare metal 安装的 CoreOS, 这个默认文件是 `/var/lib/coreos-install/user_data`.
 
-- coreos-install: 系统安装时指定 cloud-config 配置文件, 会拷贝为 /var/lib/coreos-install/user-data, 每次启动时都会初始化
-- coreos-cloudinit: 使用 `sudo coreos-cloudinit --from-file config.yml` 会立即配置 cloud-config , 重启后以`/var/lib/coreos-install/user-data` 配置为主
-- 修改 /var/lib/coreos-install/user-data 后每次重启系统都会重新配置
 
 ### 2.4 执行脚本
 
@@ -155,7 +156,7 @@ KUBERNETES_MASTER_IPV4=10.10.10.211
 KUBERNETES_WORKER_FQDN=kube-worker1
 ```
 
-创建 ssl 目录, 拷贝 master 节点 /home/coreos/k8s-coreos-bare-metal-master/master/ssl/worker 到 ssl 目录下
+创建 ssl 目录, 拷贝 master 节点 /home/core/k8s-coreos-bare-metal-master/master/ssl/worker 到 ssl 目录下
 
 ```shell
 # 创建 ssl 目录
@@ -201,7 +202,7 @@ ln -sf kubectl_macos kubectl
 拷贝 master 节点项目生成的连接秘钥文件( /home/coreos/k8s-coreos-bare-metal-master/master/ssl/kubectl/*)到到当前目录,
 
 ```shell
-scp -r kube-master:~/k8s-coreos-bare-metal-master/master/ssl/kubectl/* .
+scp -r 'kube-master:~/k8s-coreos-bare-metal-master/master/ssl/kubectl/*' .
 ```
 
 当前目录下的文件如下图:
