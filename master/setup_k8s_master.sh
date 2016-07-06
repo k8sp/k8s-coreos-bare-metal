@@ -73,7 +73,12 @@ function setup_tls {
 
 function create_namespace {
 
-	curl -H "Content-Type: application/json" -XPOST -d'{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"kube-system"}}' "http://127.0.0.1:8080/api/v1/namespaces"
+    curl -H "Content-Type: application/json" -XPOST -d'{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"kube-system"}}' "http://127.0.0.1:8080/api/v1/namespaces"
+    while [[ ! $? -eq 0 ]]; do
+      echo "Create kube-system namespace fails, try again sleep 5s!"
+      sleep 5
+      curl -H "Content-Type: application/json" -XPOST -d'{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"kube-system"}}' "http://127.0.0.1:8080/api/v1/namespaces"
+    done
 }
 
 function init_config {
