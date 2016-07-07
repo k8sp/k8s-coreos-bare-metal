@@ -299,10 +299,6 @@ init_config
 # generate kubelet service configure files and save them into /etc/kubernetes/manifests
 init_templates
 
-# stop update-engine
-systemctl stop update-engine;
-systemctl mask update-engine
-
 # start kubelet service
 systemctl daemon-reload
 systemctl enable kubelet; systemctl restart kubelet

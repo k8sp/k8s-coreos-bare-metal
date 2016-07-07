@@ -793,9 +793,6 @@ echo "ADVERTISE_IP="$ADVERTISE_IP
 init_template
 systemctl daemon-reload
 
-# stop update-engine
-systemctl stop update-engine
-systemctl mask update-engine
 
 # start kubelet service
 systemctl daemon-reload
